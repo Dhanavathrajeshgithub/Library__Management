@@ -54,3 +54,51 @@ export const register = catchAsyncErrors(async (req, res, next) => {
     next(error);
   }
 });
+
+export const verifyOTP = catchAsyncErrors(async (req, res, next) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return next(new ErrorHandler("Email or Otp is missing", 400));
+  }
+  try {
+    const userAllEntries = await User.find({
+      email,
+      accountVerified: false,
+    }).sort({ createdAt: -1 });
+
+    if (!userAllEntries) {
+      return next(new ErrorHandler("User not found.", 404));
+    }
+
+    let user = userAllEntries[0];
+    if (userAllEntries.length > 1) {
+      await User.deleteMany({
+        _id: { $ne: user._id },
+        email,
+        accountVerified: false,
+      });
+    }
+
+    if (user.verificationCode !== Number(otp)) {
+      return next(new ErrorHandler("Invalid OTP.", 400));
+    }
+
+    const currentTime = Date.now();
+    const verificationCodeExpire = new Date(
+      user.verificationCodeExpire
+    ).getTime();
+
+    if (currentTime > verificationCodeExpire) {
+      return next(new ErrorHandler("OTP expired", 400));
+    }
+
+    user.accountVerified = true;
+    user.verificationCode = null;
+    user.verificationCodeExpire = null;
+    await user.save({ validateModifiedOnly: true });
+
+    sendToken(user, 200, "Account verified.", res);
+  } catch (error) {
+    return next(new ErrorHandler("Internal server error", 500));
+  }
+});
