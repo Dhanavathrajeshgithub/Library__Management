@@ -13,7 +13,7 @@ pids
 *.pid.lock
 
 # Environment variables
-config/config.env
+config/
 
 # OS files
 .DS_Store
